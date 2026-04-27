@@ -13,6 +13,16 @@ PDF_MARKERS = {
 # ============================================================================
 date_pattern = r"^[A-Z][a-z]{2}\s\d{2}$"
 
+TRANSACTION_PATTERN = re.compile(
+    r"([A-Z][a-z]{2}\s+\d{1,2})\n"  # transaction date (Jan 06)
+    r"([A-Z][a-z]{2}\s+\d{1,2})\s*" # post date (Feb 09)
+    r"(?:Ý\s*)?"                      # optional Ý character
+    r"([^\n]+)\n"                     # name/description
+    r"([^\n]+)\n"                     # category
+    r"(-?\d+\.?\d*)",                   # amount (handles 11.95 or 8.50 or 8 etc)
+    re.DOTALL
+)
+
 # ============================================================================
 # TRANSACTION RULE: YD-Character (Ý) Handling
 # When Ý character appears between post_date and description
@@ -63,7 +73,7 @@ def parse_yd_transaction(lines):
 # ============================================================================
 def is_normal_transaction(lines):
     """Check if transaction is in standard format (5 fields with date pattern match)"""
-    return len(lines) >= 5 and re.match(date_pattern, lines[0])
+    return len(lines) == 5 and re.match(date_pattern, lines[0])
 
 def parse_normal_transaction(lines):
     """Parse standard transaction format"""
@@ -79,6 +89,6 @@ def parse_normal_transaction(lines):
 # TRANSACTION RULES - Ordered by priority (first match wins)
 # ============================================================================
 TRANSACTION_RULES = [
-    (is_yd_transaction, parse_yd_transaction),      # Check Ý rule first (highest priority)
+    #(is_yd_transaction, parse_yd_transaction),      # Check Ý rule first (highest priority)
     (is_normal_transaction, parse_normal_transaction)  # Fall back to normal parsing
 ]

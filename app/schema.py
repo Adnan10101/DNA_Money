@@ -15,6 +15,7 @@ class Transaction(BaseModel):
     post_date: str
     name: str
     bank_category: str
+    actual_category: str = None
     amount: float
 
 
@@ -34,7 +35,7 @@ class JobRequest(BaseModel):
     updated_at: datetime
     error: Optional[str] = None
     transactions_count: int = 0
-    transactions: List[dict] = []
+    transactions: List[Transaction] = []
 
 
 class JobResponse(BaseModel):
@@ -44,7 +45,7 @@ class JobResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     transactions_count: int
-    transactions: Optional[List[dict]] = None
+    transactions: Optional[List[Transaction]] = None
     error: Optional[str] = None
 
 

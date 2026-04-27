@@ -4,8 +4,7 @@ from typing import Dict, Optional
 from schema import JobStatus, JobRequest
 from text_extractor import transaction_extractor
 from embedding_utils import categorize_transaction
-import tempfile
-import os
+from schema import Transaction
 
 # In-memory job storage (could be replaced with database later)
 JOBS: Dict[str, JobRequest] = {}
@@ -64,27 +63,25 @@ def process_pdf_upload(job_id: str, file_path: str):
         for trans in extracted_transactions:
             try:
                 category_result = categorize_transaction(trans.name)
-                trans_dict = {
-                    "transaction_date": trans.transaction_date,
-                    "post_date": trans.post_date,
-                    "name": trans.name,
-                    "category": category_result.get("category") or "Uncategorized",
-                    "amount": trans.amount,
-                    "confidence": category_result.get("confidence"),
-                    "notion_url": None  # Will be set after Notion upload
-                }
+                trans_dict = Transaction(
+                    transaction_date = trans.transaction_date,
+                    post_date = trans.post_date,
+                    name = trans.name,
+                    bank_category = trans.bank_category,
+                    actual_category = category_result.get("category") or "Uncategrized",
+                    amount = trans.amount,
+                ) 
                 categorized_transactions.append(trans_dict)
             except Exception as e:
                 print(f"[Job {job_id}] Error categorizing transaction {trans.name}: {e}")
-                trans_dict = {
-                    "transaction_date": trans.transaction_date,
-                    "post_date": trans.post_date,
-                    "name": trans.name,
-                    "category": "Uncategorized",
-                    "amount": trans.amount,
-                    "confidence": 0.0,
-                    "notion_url": None
-                }
+                trans_dict = Transaction(
+                    transaction_date = trans.transaction_date,
+                    post_date = trans.post_date,
+                    name = trans.name,
+                    bank_category = trans.bank_category,
+                    actual_category = "Uncategorized",
+                    amount =  0.0,
+                )
                 categorized_transactions.append(trans_dict)
         
         # Step 3: Update job with results (Notion upload would happen here)

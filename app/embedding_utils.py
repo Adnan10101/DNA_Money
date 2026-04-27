@@ -2,7 +2,6 @@ import os
 import numpy as np
 import pickle
 import pandas as pd
-from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
 
 load_dotenv()

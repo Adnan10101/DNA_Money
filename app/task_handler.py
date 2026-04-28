@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import datetime
 from typing import Dict, Optional
@@ -5,6 +6,7 @@ from schema import JobStatus, JobRequest
 from text_extractor import transaction_extractor
 from embedding_utils import categorize_transaction
 from schema import Transaction
+from rules import PROVINCES
 
 # In-memory job storage (could be replaced with database later)
 JOBS: Dict[str, JobRequest] = {}
@@ -59,16 +61,17 @@ def process_pdf_upload(job_id: str, file_path: str):
         print(f"[Job {job_id}] Categorizing {len(extracted_transactions)} transactions...")
         categorized_transactions = []
         
-        # this should be updated, poor logic
+        # logic seems fine for now
         for trans in extracted_transactions:
             try:
-                category_result = categorize_transaction(trans.name)
+                
+                category_result = categorize_transaction(trans.name, trans.bank_category)
                 trans_dict = Transaction(
                     transaction_date = trans.transaction_date,
                     post_date = trans.post_date,
                     name = trans.name,
                     bank_category = trans.bank_category,
-                    actual_category = category_result.get("category") or "Uncategrized",
+                    actual_category = category_result.get("category") or "Uncategorized",
                     amount = trans.amount,
                 ) 
                 categorized_transactions.append(trans_dict)
@@ -113,3 +116,9 @@ def categorize_and_upload_transaction(transaction_dict: dict) -> dict:
         transaction_dict["confidence"] = 0.0
         transaction_dict["notion_url"] = None
         return transaction_dict
+
+
+def clean_merchant(name: str) -> str:
+    name = re.sub(PROVINCES + r".*$", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"\s+", " ", name).strip()
+    return name

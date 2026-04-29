@@ -9,9 +9,55 @@ PDF_MARKERS = {
 }
 
 # ============================================================================
+# Notion Categories
+# ============================================================================
+NOTION_CATEGORIES = [
+    "Shopping",
+    "Entertainments",
+    "Utilities",
+    "Education",
+    "Transport",
+    "Health & Wellness",
+    "Rent",
+    "Groceries",
+    "Food",
+    "Charity",
+    "Home",
+    "Travel",
+    "Housing",
+    "subscriptions"
+]
+
+# ============================================================================
+# LLM Prompt - need to work on this
+# ============================================================================
+CATEGORIZATION_PROMPT = """You are categorizing a bank transaction for a personal budget tracker.
+
+Merchant name: "{merchant_name}"
+Bank's category: "{bank_category}"
+
+Closest matches from the user's transaction history (all low confidence):
+{top_matches_str}
+
+Available categories to choose from:
+""" + ", ".join(NOTION_CATEGORIES) + """
+
+Reason step by step:
+1. Assess whether the embedding matches are useful or too low confidence to trust
+2. Consider what the bank's category tells you
+3. Consider what the merchant name itself suggests
+4. Pick the single best category from the available list
+
+Respond in this exact format:
+REASONING: <your step by step reasoning>
+CATEGORY: <single category name from the list above>"""
+
+# ============================================================================
 # PATTERN DEFINITIONS
 # ============================================================================
 date_pattern = r"^[A-Z][a-z]{2}\s\d{2}$"
+
+PROVINCES = r"\b(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT)\b"
 
 TRANSACTION_PATTERN = re.compile(
     r"([A-Z][a-z]{2}\s+\d{1,2})\n"  # transaction date (Jan 06)

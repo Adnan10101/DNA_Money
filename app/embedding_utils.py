@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from rules import CATEGORIZATION_PROMPT
 from dotenv import load_dotenv
 from openai import OpenAI
+from collections import defaultdict
 
 load_dotenv()
 
@@ -31,10 +32,10 @@ def categorize_transaction(merchant_name: str, bank_category: str, threshold: fl
     top_indices = scores.argsort()[::-1][:3]
     top_score = scores[top_indices[0]]
     top_matches = [
-        (df.iloc[i]["Name"], df.iloc[i]["Category_clean"], float(scores[i]))
+        (df.iloc[i]["Name_clean"], df.iloc[i]["Category_clean"], float(scores[i]))
         for i in top_indices
     ]
-    top_merchant = df.iloc[top_indices[0]]["Name"]
+    top_merchant = df.iloc[top_indices[0]]["Name_clean"]
     
     if top_score >= threshold:
         print(f"top merchant: {top_merchant}")
@@ -53,8 +54,61 @@ def categorize_transaction(merchant_name: str, bank_category: str, threshold: fl
         "top_matches": top_matches,
         "source": source,
     }
+
+
+# new scoring metric - testing
+def categorize_transaction2(merchant_name: str, bank_category: str, threshold: float = 0.60):
+    TOP_N = 10
+    EXACT_MATCH_THRESHOLD = 0.99
+    query_embedding = model.encode([merchant_name])[0]
+    scores = cosine_similarity(query_embedding, stored_embeddings)
+    
+    top_indices = scores.argsort()[::-1][:TOP_N]
+    top_matches = [
+        (df.iloc[i]["Name_clean"], df.iloc[i]["Category_clean"], float(scores[i]))
+        for i in top_indices
+    ]
+
+    # Squared voting
+    category_scores = defaultdict(float)
+    for _, category, score in top_matches:
+        category_scores[category] += score ** 2
+
+    category_normalized = {
+        cat: total / TOP_N
+        for cat, total in category_scores.items()
+    }
+
+    best_category = max(category_normalized, key=category_normalized.get)
+    best_score = category_normalized[best_category]
+
+    # Early exit — exact match AND voting agrees
+    top_name, top_category, top_score = top_matches[0]
+    if top_score >= EXACT_MATCH_THRESHOLD and top_category == best_category:
+        return {
+            "category": top_category,
+            "confidence": best_score,
+            "top_matches": top_matches,
+            "source": "embeddings",
+        }
+
+    # Normal voting threshold
+    if best_score >= threshold:
+        source = "embeddings"
+        category = best_category
+    else:
+        source = "llm"
+        category = llm_handler(merchant_name, top_matches, bank_category, best_score)
+
+    return {
+        "category": category,
+        "confidence": best_score,
+        "top_matches": top_matches,
+        "source": source,
+    }
         
 def llm_handler(merchant_name: str, top_matches: list, bank_category: str, top_score: float) -> str:
+    print("called_llm_handler")
     client = OpenAI(
     api_key=os.getenv("OPENROUTER_API_KEY"),
     base_url="https://openrouter.ai/api/v1",
@@ -86,5 +140,5 @@ def llm_handler(merchant_name: str, top_matches: list, bank_category: str, top_s
     return "Uncategorized"
     
 # test
-# l = categorize_transaction("abc","retail and grocery")
-# print(l)
+l = categorize_transaction2("walmart","retail and grocery")
+print(l)

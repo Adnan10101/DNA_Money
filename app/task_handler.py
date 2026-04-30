@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Dict, Optional
 from schema import JobStatus, JobRequest
 from text_extractor import transaction_extractor
-from embedding_utils import categorize_transaction
+from embedding_utils import categorize_transaction, categorize_transaction2
 from schema import Transaction
 from rules import PROVINCES
 
@@ -65,7 +65,7 @@ def process_pdf_upload(job_id: str, file_path: str):
         for trans in extracted_transactions:
             try:
                 
-                category_result = categorize_transaction(trans.name, trans.bank_category)
+                category_result = categorize_transaction2(trans.name, trans.bank_category)
                 trans_dict = Transaction(
                     transaction_date = trans.transaction_date,
                     post_date = trans.post_date,

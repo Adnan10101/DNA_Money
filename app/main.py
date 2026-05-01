@@ -109,7 +109,10 @@ def get_upload_status(job_id: str):
         updated_at=job.updated_at,
         transactions_count=job.transactions_count,
         transactions=job.transactions if job.status == JobStatus.COMPLETED else None,
-        error=job.error
+        llm_categorized_count = job.llm_categorized_count,
+        unknowns_count = job.unknowns_count,
+        embeddings_categorized_count = job.embeddings_categorized_count,
+        error=job.error,
     )
     
     return response

@@ -17,6 +17,7 @@ class Transaction(BaseModel):
     bank_category: str
     actual_category: str = None
     amount: float
+    source: str = "unknown"
 
 
 class JobStatus(str, Enum):
@@ -36,6 +37,9 @@ class JobRequest(BaseModel):
     error: Optional[str] = None
     transactions_count: int = 0
     transactions: List[Transaction] = []
+    llm_categorized_count: int = 0
+    embeddings_categorized_count: int = 0
+    unknowns_count: int = 0
 
 
 class JobResponse(BaseModel):
@@ -47,6 +51,9 @@ class JobResponse(BaseModel):
     transactions_count: int
     transactions: Optional[List[Transaction]] = None
     error: Optional[str] = None
+    llm_categorized_count: int = 0
+    embeddings_categorized_count: int = 0
+    unknowns_count: int = 0
 
 
 class ManualTransactionRequest(BaseModel):

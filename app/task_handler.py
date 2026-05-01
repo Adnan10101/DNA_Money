@@ -22,7 +22,8 @@ def create_job(file_name: Optional[str] = None) -> str:
         created_at=datetime.now(),
         updated_at=datetime.now(),
         transactions_count=0,
-        transactions=[]
+        transactions=[],
+        
     )
     JOBS[job_id] = job
     return job_id
@@ -60,12 +61,13 @@ def process_pdf_upload(job_id: str, file_path: str):
         # Step 2: Categorize each transaction
         print(f"[Job {job_id}] Categorizing {len(extracted_transactions)} transactions...")
         categorized_transactions = []
-        
+        embeddings_cnt, llm_cnt, unknown_cnt = 0, 0, 0
         # logic seems fine for now
         for trans in extracted_transactions:
             try:
                 
-                category_result = categorize_transaction2(trans.name, trans.bank_category)
+                category_result = categorize_transaction(trans.name, trans.bank_category)
+                source = category_result.get("source","unknown")
                 trans_dict = Transaction(
                     transaction_date = trans.transaction_date,
                     post_date = trans.post_date,
@@ -73,8 +75,13 @@ def process_pdf_upload(job_id: str, file_path: str):
                     bank_category = trans.bank_category,
                     actual_category = category_result.get("category") or "Uncategorized",
                     amount = trans.amount,
+                    source = source,
                 ) 
                 categorized_transactions.append(trans_dict)
+                if source == "embeddings":
+                    embeddings_cnt += 1
+                elif source == "llm":
+                    llm_cnt += 1
             except Exception as e:
                 print(f"[Job {job_id}] Error categorizing transaction {trans.name}: {e}")
                 trans_dict = Transaction(
@@ -84,14 +91,19 @@ def process_pdf_upload(job_id: str, file_path: str):
                     bank_category = trans.bank_category,
                     actual_category = "Uncategorized",
                     amount =  0.0,
+                    source = "Unknown"
                 )
                 categorized_transactions.append(trans_dict)
+                unknown_cnt += 1
         
         # Step 3: Update job with results (Notion upload would happen here)
         print(f"[Job {job_id}] Successfully processed {len(categorized_transactions)} transactions")
         
         JOBS[job_id].transactions = categorized_transactions
         JOBS[job_id].transactions_count = len(categorized_transactions)
+        JOBS[job_id].llm_categorized_count = llm_cnt
+        JOBS[job_id].embeddings_categorized_count = embeddings_cnt
+        JOBS[job_id].unknowns_count = unknown_cnt
         update_job_status(job_id, JobStatus.COMPLETED)
         
     except Exception as e:

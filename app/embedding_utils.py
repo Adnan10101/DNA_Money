@@ -1,9 +1,10 @@
 import os
+import re
 import numpy as np
 import pickle
 import pandas as pd
 from dotenv import load_dotenv
-from rules import CATEGORIZATION_PROMPT
+from rules import CATEGORIZATION_PROMPT, PROVINCES
 from dotenv import load_dotenv
 from openai import OpenAI
 from collections import defaultdict
@@ -25,8 +26,27 @@ print("Model and data loaded successfully!")
 def cosine_similarity(a, b):
     return np.dot(a, b.T) / (np.linalg.norm(a) * np.linalg.norm(b, axis=1))
 
-def categorize_transaction(merchant_name: str, bank_category: str, threshold: float = 0.85):
-    query_embedding = model.encode([merchant_name])[0]
+def clean_merchant(name: str) -> str:
+    if not isinstance(name, str):
+        return ""
+    name = re.sub(PROVINCES + r".*$", "", name, flags=re.IGNORECASE)
+    name = name.lower()
+    name = re.sub(r"[^a-z0-9\s]", "", name)
+    name = re.sub(r"\s+", " ", name).strip()
+    return name
+
+# sometimes categorize_transaction performs better than cate_transaction2
+# need to come up with a hybrid solution
+# for now gonna keep cate_transaction1 since it is not too strict with the categorization
+# as every transacation when  sent to cate_trans2 requires an llm call
+# One of the main reasons being the merchant name entered manually in notion is way different
+# when compared to what is given in the estatements, example: uber (in notion), Uber holdings (in estatements)
+# eventually cate_trans2 will perform better and require fewer and fewer llm calls but untill
+# then i would need to rely on another strategy until i get enough data points.
+# By perform better i mean maximise the embeddings categorization and reducnig the llm calls  
+def categorize_transaction(merchant_name: str, bank_category: str, threshold: float = 0.70):
+    clean_merchant_name = clean_merchant(merchant_name)
+    query_embedding = model.encode([clean_merchant_name])[0]
     scores = cosine_similarity(query_embedding, stored_embeddings)
     
     top_indices = scores.argsort()[::-1][:3]
@@ -36,7 +56,7 @@ def categorize_transaction(merchant_name: str, bank_category: str, threshold: fl
         for i in top_indices
     ]
     top_merchant = df.iloc[top_indices[0]]["Name_clean"]
-    
+    print(f"name: {clean_merchant}, top score {top_score}, top merchant: {top_merchant}")
     if top_score >= threshold:
         print(f"top merchant: {top_merchant}")
         print(f"top score: {top_score}")
@@ -60,7 +80,8 @@ def categorize_transaction(merchant_name: str, bank_category: str, threshold: fl
 def categorize_transaction2(merchant_name: str, bank_category: str, threshold: float = 0.60):
     TOP_N = 10
     EXACT_MATCH_THRESHOLD = 0.99
-    query_embedding = model.encode([merchant_name])[0]
+    clean_merchant_name = clean_merchant(merchant_name)
+    query_embedding = model.encode([clean_merchant_name])[0]
     scores = cosine_similarity(query_embedding, stored_embeddings)
     
     top_indices = scores.argsort()[::-1][:TOP_N]
@@ -68,7 +89,8 @@ def categorize_transaction2(merchant_name: str, bank_category: str, threshold: f
         (df.iloc[i]["Name_clean"], df.iloc[i]["Category_clean"], float(scores[i]))
         for i in top_indices
     ]
-
+    print(f"name {clean_merchant_name}")
+    print(f"top matches {top_matches[0:3]}")
     # Squared voting
     category_scores = defaultdict(float)
     for _, category, score in top_matches:
@@ -82,8 +104,11 @@ def categorize_transaction2(merchant_name: str, bank_category: str, threshold: f
     best_category = max(category_normalized, key=category_normalized.get)
     best_score = category_normalized[best_category]
 
+    print(f"best cate {best_category}, best score {best_score}")
     # Early exit — exact match AND voting agrees
     top_name, top_category, top_score = top_matches[0]
+    
+    print(f"top cate:{top_category}, top score: {top_score}")
     if top_score >= EXACT_MATCH_THRESHOLD and top_category == best_category:
         return {
             "category": top_category,
@@ -131,7 +156,7 @@ def llm_handler(merchant_name: str, top_matches: list, bank_category: str, top_s
     )
 
     raw = response.choices[0].message.content
-    print(f"Raw response LLM: {raw}")
+    #print(f"Raw response LLM: {raw}")
 
     for line in raw.splitlines():
         if line.startswith("CATEGORY:"):
@@ -140,5 +165,5 @@ def llm_handler(merchant_name: str, top_matches: list, bank_category: str, top_s
     return "Uncategorized"
     
 # test
-l = categorize_transaction2("walmart","retail and grocery")
-print(l)
+# l = categorize_transaction2("walmart","retail and grocery")
+# print(l)

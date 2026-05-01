@@ -220,7 +220,7 @@ Health check and API information.
 ```
 
 ## Running the Application
-##  Yeah I will get out of local soon (Need to turn up my server)
+###  Yeah I will get out of local soon (Need to turn up my server)
 ### Start the server:
 ```bash
 cd app

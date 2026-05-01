@@ -218,9 +218,9 @@ Health check and API information.
   "version": "1.0.0"
 }
 ```
-# Yeah I will get out of local soon (Need to turn up my server)
-## Running the Application
 
+## Running the Application
+##  Yeah I will get out of local soon (Need to turn up my server)
 ### Start the server:
 ```bash
 cd app

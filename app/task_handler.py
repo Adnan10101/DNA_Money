@@ -62,7 +62,7 @@ def process_pdf_upload(job_id: str, file_path: str):
         print(f"[Job {job_id}] Categorizing {len(extracted_transactions)} transactions...")
         categorized_transactions = []
         embeddings_cnt, llm_cnt, unknown_cnt = 0, 0, 0
-        # logic seems fine for now
+        
         for trans in extracted_transactions:
             try:
                 

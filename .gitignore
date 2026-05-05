@@ -4,3 +4,4 @@ env/
 model/embedding_model.pkl
 data/
 app/__pycache__/
+ideas

@@ -44,33 +44,39 @@ def clean_merchant(name: str) -> str:
 # eventually cate_trans2 will perform better and require fewer and fewer llm calls but untill
 # then i would need to rely on another strategy until i get enough data points.
 # By perform better i mean maximise the embeddings categorization and reducnig the llm calls  
-def categorize_transaction(merchant_name: str, bank_category: str, threshold: float = 0.70):
+
+# this will be the function used primarily (for now)
+def categorize_transaction(merchant_name: str, bank_category: str, threshold: float = 0.65):
     clean_merchant_name = clean_merchant(merchant_name)
     query_embedding = model.encode([clean_merchant_name])[0]
     scores = cosine_similarity(query_embedding, stored_embeddings)
     
-    top_indices = scores.argsort()[::-1][:3]
+    top_indices = scores.argsort()[::-1][:5]
     top_score = scores[top_indices[0]]
+    #print(top_score)
     top_matches = [
         (df.iloc[i]["Name_clean"], df.iloc[i]["Category_clean"], float(scores[i]))
         for i in top_indices
     ]
-    top_merchant = df.iloc[top_indices[0]]["Name_clean"]
-    print(f"name: {clean_merchant}, top score {top_score}, top merchant: {top_merchant}")
-    if top_score >= threshold:
-        print(f"top merchant: {top_merchant}")
-        print(f"top score: {top_score}")
-        print(f"top category: {top_matches[0][1]}")
-        
+
+    category_scores = defaultdict(float)
+    for _, category, score in top_matches:
+        category_scores[category] += score
+    
+    best_category = max(category_scores, key=category_scores.get)
+    aggregated_score = category_scores[best_category] / len(top_matches)
+    print(f"{merchant_name}: {best_category} : {aggregated_score}")
+    
+    if aggregated_score >= threshold:
         source = "embeddings"
-        category = top_matches[0][1]
+        category = best_category
     else:
         source = "llm"
         category = llm_handler(merchant_name, top_matches, bank_category, top_score)
     
     return {
         "category": category,
-        "confidence": top_score,
+        "confidence": aggregated_score,
         "top_matches": top_matches,
         "source": source,
     }
@@ -117,7 +123,6 @@ def categorize_transaction2(merchant_name: str, bank_category: str, threshold: f
             "source": "embeddings",
         }
 
-    # Normal voting threshold
     if best_score >= threshold:
         source = "embeddings"
         category = best_category
@@ -149,6 +154,7 @@ def llm_handler(merchant_name: str, top_matches: list, bank_category: str, top_s
         top_matches_str = top_matches_str,
     )
 
+    # should implement a model config or something here
     response = client.chat.completions.create(
         model="nvidia/nemotron-3-super-120b-a12b:free",
         max_tokens=800,

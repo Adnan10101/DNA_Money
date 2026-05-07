@@ -11,7 +11,7 @@ from collections import defaultdict
 
 load_dotenv()
 
-load_dotenv()
+
 EMBEDDING_MODEL_PATH = os.getenv("EMBEDDING_MODEL_PATH")
 EXPENSES_EMBEDDING_DATA_PATH = os.getenv("EXPENSES_EMBEDDING_DATA_PATH")
 
@@ -68,15 +68,16 @@ def categorize_transaction(merchant_name: str, bank_category: str, threshold: fl
         aggregated_score = category_scores[best_category] / len(top_matches)
         print(f"{merchant_name}: {best_category} : {aggregated_score}")
         
+        final_category = None
         if aggregated_score >= threshold:
             source = "embeddings"
-            category = best_category
+            final_category = best_category
         else:
             source = "llm"
-            category = llm_handler(merchant_name, top_matches, bank_category, top_score)
+            final_category = llm_handler(merchant_name, top_matches, bank_category, top_score)
         
         return {
-            "category": category or "Uncategorized",
+            "category": final_category or "Uncategorized",
             "confidence": aggregated_score,
             "top_matches": top_matches,
             "source": source,
@@ -102,7 +103,7 @@ def categorize_transaction(merchant_name: str, bank_category: str, threshold: fl
             }
 
 
-# new scoring metric - testing
+# new scoring metric - testing (will be used in the future)
 def categorize_transaction2(merchant_name: str, bank_category: str, threshold: float = 0.60):
     TOP_N = 10
     EXACT_MATCH_THRESHOLD = 0.99

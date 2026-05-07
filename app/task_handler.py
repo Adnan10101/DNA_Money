@@ -7,6 +7,7 @@ from text_extractor import transaction_extractor
 from embedding_utils import categorize_transaction, categorize_transaction2
 from schema import Transaction
 from rules import PROVINCES
+from notion import NotionManager
 
 # In-memory job storage (could be replaced with database later)
 JOBS: Dict[str, JobRequest] = {}
@@ -96,14 +97,26 @@ def process_pdf_upload(job_id: str, file_path: str):
                 categorized_transactions.append(trans_dict)
                 unknown_cnt += 1
         
-        # Step 3: Update job with results (Notion upload would happen here)
-        print(f"[Job {job_id}] Successfully processed {len(categorized_transactions)} transactions")
+        # Step 3: Update job with results
+        total_transaction_count = len(categorized_transactions)
+        
+        print(f"[Job {job_id}] Successfully processed {total_transaction_count} transactions")
         
         JOBS[job_id].transactions = categorized_transactions
-        JOBS[job_id].transactions_count = len(categorized_transactions)
+        JOBS[job_id].transactions_count = total_transaction_count
         JOBS[job_id].llm_categorized_count = llm_cnt
         JOBS[job_id].embeddings_categorized_count = embeddings_cnt
         JOBS[job_id].unknowns_count = unknown_cnt
+        
+        # Step 4: Upload to Notion
+        try:
+            print(f"[Job {job_id}] Uploading {total_transaction_count} transactions to Notion...")
+            notion_manager = NotionManager()
+            successful, failed = notion_manager.add_transactions_batch(categorized_transactions)
+            print(f"[Job {job_id}] Notion upload complete: {successful} successful out of {total_transaction_count}, {len(failed)} failed")
+        except Exception as e:
+            print(f"[Job {job_id}] Warning: Notion upload failed - {str(e)}. Continuing without Notion sync.")
+        
         update_job_status(job_id, JobStatus.COMPLETED)
         
     except Exception as e:

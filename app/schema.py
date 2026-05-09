@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Any
 from enum import Enum
 from datetime import datetime
 
@@ -74,3 +74,11 @@ class ManualTransactionResponse(BaseModel):
     amount: float
     confidence: Optional[float] = None
     notion_url: Optional[str] = None
+    
+class CategoryResult(BaseModel):
+    name: str
+    bank_category: str
+    actual_category: str
+    source: str
+    confidence_score: float
+    top_matches: List[Any]

@@ -90,17 +90,3 @@ def transaction_extractor(file_path):
     doc.close()
     print(f"\nTotal transactions extracted: {len(transactions)}")
     return transactions
-
-
-
-
-# ## Roadmap
-
-# - [ ] Database persistence for job history
-# - [ ] Support for multiple bank statement formats
-# - [ ] Transaction duplicate detection
-# - [ ] Direct Notion integration for automated uploads
-# - [ ] Batch processing optimizations
-# - [ ] Historical categorization analytics
-# - [ ] Custom categorization rules per user
-# - [ ] Support for multi-currency transactions

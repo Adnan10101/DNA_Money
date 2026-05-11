@@ -1,11 +1,11 @@
 import os
 import tempfile
-import threading
+import asyncio
 from datetime import datetime
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from pydantic import BaseModel
 import uvicorn
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from schema import (
     Item,
@@ -30,7 +30,7 @@ app = FastAPI(
 )
 
 # Background scheduler for async tasks
-scheduler = BackgroundScheduler()
+scheduler = AsyncIOScheduler()
 
 
 @app.on_event("startup")

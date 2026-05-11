@@ -46,7 +46,7 @@ def update_job_status(job_id: str, status: JobStatus, error: Optional[str] = Non
             JOBS[job_id].error = error
 
 
-def process_pdf_upload(job_id: str, file_path: str):
+async def process_pdf_upload(job_id: str, file_path: str):
     """
     Background task: Extract transactions from PDF, categorize, and prepare for Notion upload
     """
@@ -128,7 +128,7 @@ def process_pdf_upload(job_id: str, file_path: str):
         JOBS[job_id].unknowns_count = unknown_cnt
         
         # Step 4.1: upload to DB
-        upload_category_analysis_to_supabase(job_id, category_analysis)
+        await upload_category_analysis_to_supabase(job_id, category_analysis)
         
         # Step 4.2: Upload to Notion
         try:

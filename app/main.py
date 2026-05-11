@@ -1,11 +1,15 @@
 import os
 import tempfile
 import asyncio
-from datetime import datetime
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from pydantic import BaseModel
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request, Depends
+from starlette.middleware.sessions import SessionMiddleware
+from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from dotenv import load_dotenv
+from authlib.integrations.starlette_client import OAuth
+from jose import jwt, JWTError
+from datetime import datetime, timedelta
 
 from schema import (
     Item,
@@ -22,16 +26,114 @@ from task_handler import (
     categorize_and_upload_transaction,
 )
 
+load_dotenv()
+
+GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID")
+GITHUB_CLIENT_SECRET = os.getenv("GITHUB_SECRET")
+JWT_SECRET = os.getenv("JWT_SECRET")
+JWT_ALGORITHM = "HS256"
+ALLOWED_GITHUB_USERS = set(os.getenv("ALLOWED_USERS", "").split(","))
+PUBLIC_ROUTES = {"/login", "/auth/github/callback"}
+
+def create_token(user: dict):
+    payload = {
+        "sub": user["login"],
+        "github_id": user["id"],
+        "exp": datetime.utcnow() + timedelta(hours=1)
+    }
+
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
 app = FastAPI(
     title="DNA Money API",
     description="API for expense tracking and analysis",
     version="1.0.0",
-    debug=True
 )
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("JWT_SECRET")
+)
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    if request.url.path in PUBLIC_ROUTES:
+        return await call_next(request)
+
+    # everything else needs a valid cookie
+    token = request.cookies.get("access_token")
+    if not token:
+        return RedirectResponse("/login")
+
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        request.state.user = payload 
+        return await call_next(request)
+    except JWTError:
+        return RedirectResponse("/login")
+
+oauth = OAuth()
+oauth.register(
+    name="github",
+
+    client_id=GITHUB_CLIENT_ID,
+    client_secret=GITHUB_CLIENT_SECRET,
+
+    access_token_url="https://github.com/login/oauth/access_token",
+
+    authorize_url="https://github.com/login/oauth/authorize",
+
+    api_base_url="https://api.github.com/",
+
+    client_kwargs={
+        "scope": "read:user user:email"
+    }
+)
+
 
 # Background scheduler for async tasks
 scheduler = AsyncIOScheduler()
 
+#################
+# Login
+@app.get("/login")
+async def login(request: Request):
+    redirect_uri = request.url_for("auth_callback")
+    return await oauth.github.authorize_redirect(
+        request,
+        redirect_uri
+    )
+    
+###############
+# Callback
+@app.get("/auth/github/callback")
+async def auth_callback(request: Request):
+
+    token = await oauth.github.authorize_access_token(request)
+
+    response = await oauth.github.get("user", token=token)
+
+    github_user = response.json()
+
+    if github_user["login"] not in ALLOWED_GITHUB_USERS:
+        return HTMLResponse("You are not authorized", status_code=403)
+    
+    # ✅ CREATE YOUR OWN TOKEN
+    app_token = create_token(github_user)
+
+    # ✅ STORE IN COOKIE
+    res = JSONResponse({
+        "message": "Login successful",
+        "github_user": github_user
+    })
+
+    res.set_cookie(
+        key="access_token",
+        value=app_token,
+        httponly=True
+    )
+
+    return res
 
 @app.on_event("startup")
 def start_scheduler():

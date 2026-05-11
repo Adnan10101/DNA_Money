@@ -5,7 +5,6 @@ import pickle
 import pandas as pd
 from dotenv import load_dotenv
 from rules import CATEGORIZATION_PROMPT, PROVINCES
-from dotenv import load_dotenv
 from openai import OpenAI
 from collections import defaultdict
 

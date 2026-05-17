@@ -4,6 +4,7 @@ from notion_client import Client
 from schema import Transaction
 from dotenv import load_dotenv
 from datetime import datetime
+import uuid
 
 load_dotenv()
 
@@ -32,10 +33,12 @@ class NotionManager:
     
     def add_transaction(self, transaction: Transaction) -> dict:
         try:
+            transaction_id = str(uuid.uuid4())
             category = self.get_notion_category_id(transaction.actual_category)
             page = self.client.pages.create(
                 parent = {"database_id" : self.database_id},
                 properties = {
+                    "transaction_id": { "rich_text": [{"text": {"content": transaction_id}}]},
                     "Name": {"title": [{"text": {"content": transaction.name}}]},
                     "Category": {"relation":[{"id": category}]},
                     "Amount": {"number": transaction.amount},
@@ -70,8 +73,8 @@ class NotionManager:
     # notion has its own way of naming categories (done by a uuid smh)
     def get_notion_category_id(self, category_name):
         db = self.client.databases.retrieve(database_id="2fdf202d-177d-81f3-8758-ee21dbb9bd19")
-        response = self.client.data_sources.query(
-            data_source_id=db["data_sources"][0]["id"],
+        response = self.client.databases.query(
+            database_id="2fdf202d-177d-81f3-8758-ee21dbb9bd19",
             filter={
                 "property": "Name",
                 "title": {

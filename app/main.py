@@ -33,7 +33,13 @@ GITHUB_CLIENT_SECRET = os.getenv("GITHUB_SECRET")
 JWT_SECRET = os.getenv("JWT_SECRET")
 JWT_ALGORITHM = "HS256"
 ALLOWED_GITHUB_USERS = set(os.getenv("ALLOWED_USERS", "").split(","))
-PUBLIC_ROUTES = {"/login", "/auth/github/callback"}
+PUBLIC_ROUTES = {
+    "/login",
+    "/auth/github/callback",
+    "/docs",
+    "/openapi.json",
+    "/redoc",
+}
 
 def create_token(user: dict):
     payload = {
@@ -55,23 +61,6 @@ app.add_middleware(
     secret_key=os.getenv("JWT_SECRET")
 )
 
-@app.middleware("http")
-async def auth_middleware(request: Request, call_next):
-    if request.url.path in PUBLIC_ROUTES:
-        return await call_next(request)
-
-    # everything else needs a valid cookie
-    token = request.cookies.get("access_token")
-    if not token:
-        return RedirectResponse("/login")
-
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        request.state.user = payload 
-        return await call_next(request)
-    except JWTError:
-        return RedirectResponse("/login")
-
 oauth = OAuth()
 oauth.register(
     name="github",
@@ -92,6 +81,7 @@ oauth.register(
 
 
 # Background scheduler for async tasks
+# Initialize with get_event_loop to ensure proper event loop binding
 scheduler = AsyncIOScheduler()
 
 #################
@@ -116,7 +106,7 @@ async def auth_callback(request: Request):
     github_user = response.json()
 
     if github_user["login"] not in ALLOWED_GITHUB_USERS:
-        return HTMLResponse("You are not authorized", status_code=403)
+        raise HTTPException(status_code=403, detail="Not authorized")
     
     # ✅ CREATE YOUR OWN TOKEN
     app_token = create_token(github_user)
@@ -135,35 +125,56 @@ async def auth_callback(request: Request):
 
     return res
 
+async def get_current_user(request: Request):
+
+    token = request.cookies.get("access_token")
+
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated"
+        )
+
+    try:
+        payload = jwt.decode(
+            token,
+            JWT_SECRET,
+            algorithms=[JWT_ALGORITHM]
+        )
+        return payload
+
+    except JWTError:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token"
+        )
+
 @app.on_event("startup")
-def start_scheduler():
+async def start_scheduler():
     """Start background scheduler on app startup"""
     if not scheduler.running:
+        # Ensure scheduler uses the current event loop
+        scheduler.configure(event_loop=asyncio.get_event_loop())
         scheduler.start()
 
 
 @app.on_event("shutdown")
-def shutdown_scheduler():
+async def shutdown_scheduler():
     """Shutdown scheduler on app shutdown"""
     if scheduler.running:
-        scheduler.shutdown()
+        scheduler.shutdown(wait=False)
 
 
 
 @app.get("/")
-def read_root():
+async def read_root():
     """Welcome endpoint"""
     return {"message": "Welcome to DNA Money API", "version": "1.0.0"}
 
 
 @app.post("/upload")
-async def upload_pdf(file: UploadFile = File(...)):
-    """
-    Upload a PDF statement for processing.
-    Returns immediately with a job_id for tracking progress.
-    Processing happens asynchronously in the background.
-    """
-    # Create job
+@app.post("/upload")
+async def upload_pdf(file: UploadFile = File(...), current_user = Depends(get_current_user)):
     job_id = create_job(file_name=file.filename)
     
     # Save uploaded file to temp location
@@ -194,7 +205,7 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 
 @app.get("/upload/{job_id}")
-def get_upload_status(job_id: str):
+async def get_upload_status(job_id: str, current_user = Depends(get_current_user)):
     """
     Get the status of a PDF upload job.
     Returns the current status and extracted/categorized transactions if completed.
@@ -222,7 +233,7 @@ def get_upload_status(job_id: str):
 
 # havent reviewed this yet
 @app.post("/transaction")
-def add_manual_transaction(transaction: ManualTransactionRequest):
+async def add_manual_transaction(transaction: ManualTransactionRequest, current_user = Depends(get_current_user)):
     """
     Add a single transaction manually.
     Categorizes the transaction and returns the result.

@@ -35,17 +35,6 @@ class NotionManager:
         try:
             transaction_id = str(uuid.uuid4())
             category = self.get_notion_category_id(transaction.actual_category)
-            # print(
-            #     f"""
-            #     properties = 
-            #         "transaction_id": {transaction_id},
-            #         "Name": {transaction.name},
-            #         "Category":{category},
-            #         "Amount": {transaction.amount},
-            #         "Date":{self.format_date(transaction.transaction_date)},
-                
-            #     """
-            # )
             page = self.client.pages.create(
                 parent = {"database_id" : self.database_id},
                 properties = {
@@ -58,7 +47,7 @@ class NotionManager:
             )
            
             print(f"✓ Added transaction to Notion: {transaction.name} ({transaction.amount})")
-            #return page
+            return page
         except Exception as e:
             print(f"✗ Error adding transaction to Notion: {transaction.name} - {str(e)}")
             raise
@@ -84,15 +73,6 @@ class NotionManager:
     # notion has its own way of naming categories (done by a uuid smh)
     def get_notion_category_id(self, category_name):
         db = self.client.databases.retrieve(database_id="2fdf202d-177d-81f3-8758-ee21dbb9bd19")
-        # response = self.client.data_sources.query(
-        #     data_source_id=db["data_sources"][0]["id"],
-        #     filter={
-        #         "property": "Name",
-        #         "title": {
-        #             "equals": category_name
-        #         }
-        #     }
-        # )
         response = self.client.databases.query(
             database_id="2fdf202d-177d-81f3-8758-ee21dbb9bd19",
             filter={

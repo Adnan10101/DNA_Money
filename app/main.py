@@ -28,27 +28,27 @@ from task_handler import (
 
 load_dotenv()
 
-# GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID")
-# GITHUB_CLIENT_SECRET = os.getenv("GITHUB_SECRET")
-# JWT_SECRET = os.getenv("JWT_SECRET")
-# JWT_ALGORITHM = "HS256"
-# ALLOWED_GITHUB_USERS = set(os.getenv("ALLOWED_USERS", "").split(","))
-# PUBLIC_ROUTES = {
-#     "/login",
-#     "/auth/github/callback",
-#     "/docs",
-#     "/openapi.json",
-#     "/redoc",
-# }
+GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID")
+GITHUB_CLIENT_SECRET = os.getenv("GITHUB_SECRET")
+JWT_SECRET = os.getenv("JWT_SECRET")
+JWT_ALGORITHM = "HS256"
+ALLOWED_GITHUB_USERS = set(os.getenv("ALLOWED_USERS", "").split(","))
+PUBLIC_ROUTES = {
+    "/login",
+    "/auth/github/callback",
+    "/docs",
+    "/openapi.json",
+    "/redoc",
+}
 
-# def create_token(user: dict):
-#     payload = {
-#         "sub": user["login"],
-#         "github_id": user["id"],
-#         "exp": datetime.utcnow() + timedelta(hours=1)
-#     }
+def create_token(user: dict):
+    payload = {
+        "sub": user["login"],
+        "github_id": user["id"],
+        "exp": datetime.utcnow() + timedelta(hours=1)
+    }
 
-#     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 app = FastAPI(
     title="DNA Money API",
@@ -56,28 +56,28 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# app.add_middleware(
-#     SessionMiddleware,
-#     secret_key=os.getenv("JWT_SECRET")
-# )
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("JWT_SECRET")
+)
 
-# oauth = OAuth()
-# oauth.register(
-#     name="github",
+oauth = OAuth()
+oauth.register(
+    name="github",
 
-#     client_id=GITHUB_CLIENT_ID,
-#     client_secret=GITHUB_CLIENT_SECRET,
+    client_id=GITHUB_CLIENT_ID,
+    client_secret=GITHUB_CLIENT_SECRET,
 
-#     access_token_url="https://github.com/login/oauth/access_token",
+    access_token_url="https://github.com/login/oauth/access_token",
 
-#     authorize_url="https://github.com/login/oauth/authorize",
+    authorize_url="https://github.com/login/oauth/authorize",
 
-#     api_base_url="https://api.github.com/",
+    api_base_url="https://api.github.com/",
 
-#     client_kwargs={
-#         "scope": "read:user user:email"
-#     }
-# )
+    client_kwargs={
+        "scope": "read:user user:email"
+    }
+)
 
 
 # Background scheduler for async tasks
@@ -86,68 +86,68 @@ scheduler = AsyncIOScheduler()
 
 #################
 # Login
-# @app.get("/login")
-# async def login(request: Request):
-#     redirect_uri = request.url_for("auth_callback")
-#     return await oauth.github.authorize_redirect(
-#         request,
-#         redirect_uri
-#     )
+@app.get("/login")
+async def login(request: Request):
+    redirect_uri = request.url_for("auth_callback")
+    return await oauth.github.authorize_redirect(
+        request,
+        redirect_uri
+    )
     
 ###############
 # Callback
-# @app.get("/auth/github/callback")
-# async def auth_callback(request: Request):
+@app.get("/auth/github/callback")
+async def auth_callback(request: Request):
 
-#     token = await oauth.github.authorize_access_token(request)
+    token = await oauth.github.authorize_access_token(request)
 
-#     response = await oauth.github.get("user", token=token)
+    response = await oauth.github.get("user", token=token)
 
-#     github_user = response.json()
+    github_user = response.json()
 
-#     if github_user["login"] not in ALLOWED_GITHUB_USERS:
-#         raise HTTPException(status_code=403, detail="Not authorized")
+    if github_user["login"] not in ALLOWED_GITHUB_USERS:
+        raise HTTPException(status_code=403, detail="Not authorized")
     
-#     # ✅ CREATE YOUR OWN TOKEN
-#     app_token = create_token(github_user)
+    # ✅ CREATE YOUR OWN TOKEN
+    app_token = create_token(github_user)
 
-#     # ✅ STORE IN COOKIE
-#     res = JSONResponse({
-#         "message": "Login successful",
-#         "github_user": github_user
-#     })
+    # ✅ STORE IN COOKIE
+    res = JSONResponse({
+        "message": "Login successful",
+        "github_user": github_user
+    })
 
-#     res.set_cookie(
-#         key="access_token",
-#         value=app_token,
-#         httponly=True
-#     )
+    res.set_cookie(
+        key="access_token",
+        value=app_token,
+        httponly=True
+    )
 
-#     return res
+    return res
 
-# async def get_current_user(request: Request):
+async def get_current_user(request: Request):
 
-#     token = request.cookies.get("access_token")
+    token = request.cookies.get("access_token")
 
-#     if not token:
-#         raise HTTPException(
-#             status_code=401,
-#             detail="Not authenticated"
-#         )
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated"
+        )
 
-#     try:
-#         payload = jwt.decode(
-#             token,
-#             JWT_SECRET,
-#             algorithms=[JWT_ALGORITHM]
-#         )
-#         return payload
+    try:
+        payload = jwt.decode(
+            token,
+            JWT_SECRET,
+            algorithms=[JWT_ALGORITHM]
+        )
+        return payload
 
-#     except JWTError:
-#         raise HTTPException(
-#             status_code=401,
-#             detail="Invalid token"
-#         )
+    except JWTError:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token"
+        )
 
 @app.on_event("startup")
 async def start_scheduler():
@@ -173,7 +173,8 @@ async def read_root():
 
 
 @app.post("/upload")
-async def upload_pdf(file: UploadFile = File(...)):
+@app.post("/upload")
+async def upload_pdf(file: UploadFile = File(...), current_user = Depends(get_current_user)):
     job_id = create_job(file_name=file.filename)
     
     # Save uploaded file to temp location
@@ -204,7 +205,7 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 
 @app.get("/upload/{job_id}")
-async def get_upload_status(job_id: str):
+async def get_upload_status(job_id: str, current_user = Depends(get_current_user)):
     """
     Get the status of a PDF upload job.
     Returns the current status and extracted/categorized transactions if completed.
@@ -232,7 +233,7 @@ async def get_upload_status(job_id: str):
 
 # havent reviewed this yet
 @app.post("/transaction")
-async def add_manual_transaction(transaction: ManualTransactionRequest):
+async def add_manual_transaction(transaction: ManualTransactionRequest, current_user = Depends(get_current_user)):
     """
     Add a single transaction manually.
     Categorizes the transaction and returns the result.

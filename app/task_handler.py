@@ -47,100 +47,104 @@ def update_job_status(job_id: str, status: JobStatus, error: Optional[str] = Non
 
 
 async def process_pdf_upload(job_id: str, file_path: str):
-    """
-    Background task: Extract transactions from PDF, categorize, and prepare for Notion upload
-    """
     try:
         update_job_status(job_id, JobStatus.PROCESSING)
-        
-        # Step 1: Extract transactions from PDF
+        loop = asyncio.get_event_loop()
+
+        # Step 1: Extract transactions — wrapped in executor (blocking)
         print(f"[Job {job_id}] Extracting transactions from PDF...")
-        extracted_transactions = transaction_extractor(file_path)
-        
+        extracted_transactions = await loop.run_in_executor(
+            None, transaction_extractor, file_path
+        )
+
         if not extracted_transactions:
             update_job_status(job_id, JobStatus.FAILED, "No transactions found in PDF")
             return
-        
-        # Step 2: Categorize each transaction
+
+        # Step 2: Categorize each transaction — wrapped in executor (blocking)
         print(f"[Job {job_id}] Categorizing {len(extracted_transactions)} transactions...")
         categorized_transactions = []
         category_analysis = []
         embeddings_cnt, llm_cnt, unknown_cnt = 0, 0, 0
-        
+
         for trans in extracted_transactions:
             try:
-                
-                category_result = categorize_transaction(trans.name, trans.bank_category)
+                # blocking — numpy + possible LLM call
+                category_result = await loop.run_in_executor(
+                    None, categorize_transaction, trans.name, trans.bank_category
+                )
                 final_category = category_result.get("category", "Uncategorized")
-                source = category_result.get("source","unknown")
-                confidence_score = category_result.get("confidence",0.0)
-                top_matches = category_result.get("top_matches",[])
-                
+                source = category_result.get("source", "unknown")
+                confidence_score = category_result.get("confidence", 0.0)
+                top_matches = category_result.get("top_matches", [])
+
                 trans_dict = Transaction(
-                    transaction_date = trans.transaction_date,
-                    post_date = trans.post_date,
-                    name = trans.name,
-                    bank_category = trans.bank_category,
-                    actual_category = final_category,
-                    amount = trans.amount,
-                    source = source,
+                    transaction_date=trans.transaction_date,
+                    post_date=trans.post_date,
+                    name=trans.name,
+                    bank_category=trans.bank_category,
+                    actual_category=final_category,
+                    amount=trans.amount,
+                    source=source,
                 )
-                
+
                 cat_dict = CategoryResult(
-                    name = trans.name,
-                    bank_category = trans.bank_category,
-                    actual_category = final_category,
-                    source = source,
-                    confidence_score = confidence_score,
-                    top_matches = top_matches
+                    name=trans.name,
+                    bank_category=trans.bank_category,
+                    actual_category=final_category,
+                    source=source,
+                    confidence_score=confidence_score,
+                    top_matches=top_matches
                 )
-                 
+
                 categorized_transactions.append(trans_dict)
                 category_analysis.append(cat_dict)
-                
+
                 if source == "embeddings":
                     embeddings_cnt += 1
                 elif source == "llm":
                     llm_cnt += 1
+
             except Exception as e:
                 print(f"[Job {job_id}] Error categorizing transaction {trans.name}: {e}")
                 trans_dict = Transaction(
-                    transaction_date = trans.transaction_date,
-                    post_date = trans.post_date,
-                    name = trans.name,
-                    bank_category = trans.bank_category,
-                    actual_category = "Uncategorized",
-                    amount =  0.0,
-                    source = "Unknown"
+                    transaction_date=trans.transaction_date,
+                    post_date=trans.post_date,
+                    name=trans.name,
+                    bank_category=trans.bank_category,
+                    actual_category="Uncategorized",
+                    amount=0.0,
+                    source="Unknown"
                 )
                 categorized_transactions.append(trans_dict)
                 unknown_cnt += 1
-        
+
         # Step 3: Update job with results
         total_transaction_count = len(categorized_transactions)
-        
         print(f"[Job {job_id}] Successfully processed {total_transaction_count} transactions")
-        
+
         JOBS[job_id].transactions = categorized_transactions
         JOBS[job_id].transactions_count = total_transaction_count
         JOBS[job_id].llm_categorized_count = llm_cnt
         JOBS[job_id].embeddings_categorized_count = embeddings_cnt
         JOBS[job_id].unknowns_count = unknown_cnt
-        
-        #Step 4.1: upload to DB
-        #await upload_category_analysis_to_supabase(job_id, category_analysis)
-        
-        #Step 4.2: Upload to Notion
-        # try:
-        #     print(f"[Job {job_id}] Uploading {total_transaction_count} transactions to Notion...")
-        #     notion_manager = NotionManager()
-        #     successful, failed = notion_manager.add_transactions_batch(categorized_transactions)
-        #     print(f"[Job {job_id}] Notion upload complete: {successful} successful out of {total_transaction_count}, {len(failed)} failed")
-        # except Exception as e:
-        #     print(f"[Job {job_id}] Warning: Notion upload failed - {str(e)}. Continuing without Notion sync.")
-        
+
+        # Step 4.1: Upload to Supabase
+        await upload_category_analysis_to_supabase(job_id, category_analysis)
+
+        # Step 4.2: Upload to Notion — wrapped in executor (blocking)
+        try:
+            print(f"[Job {job_id}] Uploading {total_transaction_count} transactions to Notion...")
+            notion_manager = NotionManager()
+            successful, failed = await loop.run_in_executor(
+                None, notion_manager.add_transactions_batch, categorized_transactions
+            )
+            print(f"[Job {job_id}] Notion upload complete: {successful} successful, {len(failed)} failed")
+        except Exception as e:
+            print(f"[Job {job_id}] Warning: Notion upload failed - {str(e)}")
+
         update_job_status(job_id, JobStatus.COMPLETED)
-        
+
     except Exception as e:
         error_msg = f"Error processing PDF: {str(e)}"
         print(f"[Job {job_id}] {error_msg}")
@@ -165,10 +169,10 @@ def categorize_and_upload_transaction(transaction_dict: dict) -> dict:
         return transaction_dict
 
 
-def clean_merchant(name: str) -> str:
-    name = re.sub(PROVINCES + r".*$", "", name, flags=re.IGNORECASE)
-    name = re.sub(r"\s+", " ", name).strip()
-    return name
+# def clean_merchant(name: str) -> str:
+#     name = re.sub(PROVINCES + r".*$", "", name, flags=re.IGNORECASE)
+#     name = re.sub(r"\s+", " ", name).strip()
+#     return name
 
 
 # ============================================================================

@@ -74,8 +74,8 @@ def categorize_transaction(merchant_name: str, bank_category: str, threshold: fl
             final_category = best_category
         else:
             source = "llm"
-            time.sleep(10)
-            #final_category = llm_handler(merchant_name, top_matches, bank_category, top_score)
+            #time.sleep(50)
+            final_category = llm_handler(merchant_name, top_matches, bank_category, top_score)
         
         return {
             "category": final_category or "Uncategorized",
@@ -150,6 +150,7 @@ def categorize_transaction2(merchant_name: str, bank_category: str, threshold: f
         category = best_category
     else:
         source = "llm"
+        #time.sleep(20)
         category = llm_handler(merchant_name, top_matches, bank_category, best_score)
 
     return {

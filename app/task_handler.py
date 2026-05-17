@@ -127,10 +127,10 @@ async def process_pdf_upload(job_id: str, file_path: str):
         JOBS[job_id].embeddings_categorized_count = embeddings_cnt
         JOBS[job_id].unknowns_count = unknown_cnt
         
-        # Step 4.1: upload to DB
+        #Step 4.1: upload to DB
         #await upload_category_analysis_to_supabase(job_id, category_analysis)
         
-        # Step 4.2: Upload to Notion
+        #Step 4.2: Upload to Notion
         # try:
         #     print(f"[Job {job_id}] Uploading {total_transaction_count} transactions to Notion...")
         #     notion_manager = NotionManager()

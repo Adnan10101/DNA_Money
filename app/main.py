@@ -28,21 +28,27 @@ from task_handler import (
 
 load_dotenv()
 
-GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID")
-GITHUB_CLIENT_SECRET = os.getenv("GITHUB_SECRET")
-JWT_SECRET = os.getenv("JWT_SECRET")
-JWT_ALGORITHM = "HS256"
-ALLOWED_GITHUB_USERS = set(os.getenv("ALLOWED_USERS", "").split(","))
-PUBLIC_ROUTES = {"/login", "/auth/github/callback"}
+# GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID")
+# GITHUB_CLIENT_SECRET = os.getenv("GITHUB_SECRET")
+# JWT_SECRET = os.getenv("JWT_SECRET")
+# JWT_ALGORITHM = "HS256"
+# ALLOWED_GITHUB_USERS = set(os.getenv("ALLOWED_USERS", "").split(","))
+# PUBLIC_ROUTES = {
+#     "/login",
+#     "/auth/github/callback",
+#     "/docs",
+#     "/openapi.json",
+#     "/redoc",
+# }
 
-def create_token(user: dict):
-    payload = {
-        "sub": user["login"],
-        "github_id": user["id"],
-        "exp": datetime.utcnow() + timedelta(hours=1)
-    }
+# def create_token(user: dict):
+#     payload = {
+#         "sub": user["login"],
+#         "github_id": user["id"],
+#         "exp": datetime.utcnow() + timedelta(hours=1)
+#     }
 
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+#     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 app = FastAPI(
     title="DNA Money API",
@@ -50,45 +56,28 @@ app = FastAPI(
     version="1.0.0",
 )
 
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=os.getenv("JWT_SECRET")
-)
+# app.add_middleware(
+#     SessionMiddleware,
+#     secret_key=os.getenv("JWT_SECRET")
+# )
 
-@app.middleware("http")
-async def auth_middleware(request: Request, call_next):
-    if request.url.path in PUBLIC_ROUTES:
-        return await call_next(request)
+# oauth = OAuth()
+# oauth.register(
+#     name="github",
 
-    # everything else needs a valid cookie
-    token = request.cookies.get("access_token")
-    if not token:
-        return RedirectResponse("/login")
+#     client_id=GITHUB_CLIENT_ID,
+#     client_secret=GITHUB_CLIENT_SECRET,
 
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        request.state.user = payload 
-        return await call_next(request)
-    except JWTError:
-        return RedirectResponse("/login")
+#     access_token_url="https://github.com/login/oauth/access_token",
 
-oauth = OAuth()
-oauth.register(
-    name="github",
+#     authorize_url="https://github.com/login/oauth/authorize",
 
-    client_id=GITHUB_CLIENT_ID,
-    client_secret=GITHUB_CLIENT_SECRET,
+#     api_base_url="https://api.github.com/",
 
-    access_token_url="https://github.com/login/oauth/access_token",
-
-    authorize_url="https://github.com/login/oauth/authorize",
-
-    api_base_url="https://api.github.com/",
-
-    client_kwargs={
-        "scope": "read:user user:email"
-    }
-)
+#     client_kwargs={
+#         "scope": "read:user user:email"
+#     }
+# )
 
 
 # Background scheduler for async tasks
@@ -97,44 +86,68 @@ scheduler = AsyncIOScheduler()
 
 #################
 # Login
-@app.get("/login")
-async def login(request: Request):
-    redirect_uri = request.url_for("auth_callback")
-    return await oauth.github.authorize_redirect(
-        request,
-        redirect_uri
-    )
+# @app.get("/login")
+# async def login(request: Request):
+#     redirect_uri = request.url_for("auth_callback")
+#     return await oauth.github.authorize_redirect(
+#         request,
+#         redirect_uri
+#     )
     
 ###############
 # Callback
-@app.get("/auth/github/callback")
-async def auth_callback(request: Request):
+# @app.get("/auth/github/callback")
+# async def auth_callback(request: Request):
 
-    token = await oauth.github.authorize_access_token(request)
+#     token = await oauth.github.authorize_access_token(request)
 
-    response = await oauth.github.get("user", token=token)
+#     response = await oauth.github.get("user", token=token)
 
-    github_user = response.json()
+#     github_user = response.json()
 
-    if github_user["login"] not in ALLOWED_GITHUB_USERS:
-        return HTMLResponse("You are not authorized", status_code=403)
+#     if github_user["login"] not in ALLOWED_GITHUB_USERS:
+#         raise HTTPException(status_code=403, detail="Not authorized")
     
-    # ✅ CREATE YOUR OWN TOKEN
-    app_token = create_token(github_user)
+#     # ✅ CREATE YOUR OWN TOKEN
+#     app_token = create_token(github_user)
 
-    # ✅ STORE IN COOKIE
-    res = JSONResponse({
-        "message": "Login successful",
-        "github_user": github_user
-    })
+#     # ✅ STORE IN COOKIE
+#     res = JSONResponse({
+#         "message": "Login successful",
+#         "github_user": github_user
+#     })
 
-    res.set_cookie(
-        key="access_token",
-        value=app_token,
-        httponly=True
-    )
+#     res.set_cookie(
+#         key="access_token",
+#         value=app_token,
+#         httponly=True
+#     )
 
-    return res
+#     return res
+
+# async def get_current_user(request: Request):
+
+#     token = request.cookies.get("access_token")
+
+#     if not token:
+#         raise HTTPException(
+#             status_code=401,
+#             detail="Not authenticated"
+#         )
+
+#     try:
+#         payload = jwt.decode(
+#             token,
+#             JWT_SECRET,
+#             algorithms=[JWT_ALGORITHM]
+#         )
+#         return payload
+
+#     except JWTError:
+#         raise HTTPException(
+#             status_code=401,
+#             detail="Invalid token"
+#         )
 
 @app.on_event("startup")
 async def start_scheduler():
@@ -161,12 +174,6 @@ async def read_root():
 
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
-    """
-    Upload a PDF statement for processing.
-    Returns immediately with a job_id for tracking progress.
-    Processing happens asynchronously in the background.
-    """
-    # Create job
     job_id = create_job(file_name=file.filename)
     
     # Save uploaded file to temp location

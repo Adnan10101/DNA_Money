@@ -25,7 +25,8 @@ NOTION_CATEGORIES = [
     "Home",
     "Travel",
     "Housing",
-    "subscriptions"
+    "subscriptions",
+    "Uncategorized"
 ]
 
 # ============================================================================
@@ -36,7 +37,7 @@ CATEGORIZATION_PROMPT = """You are categorizing a bank transaction for a persona
 Merchant name: "{merchant_name}"
 Bank's category: "{bank_category}"
 
-Closest matches from the user's transaction history (all low confidence):
+Closest matches from the user's transaction history (all confidence):
 {top_matches_str}
 
 Available categories to choose from:
@@ -47,6 +48,7 @@ Reason step by step:
 2. Consider what the bank's category tells you
 3. Consider what the merchant name itself suggests
 4. Pick the single best category from the available list
+5. If you cannot confidently determine the category from any of the above signals, use "Uncategorized"
 
 Respond in this exact format:
 REASONING: <your step by step reasoning>

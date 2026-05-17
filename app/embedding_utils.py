@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from rules import CATEGORIZATION_PROMPT, PROVINCES
 from openai import OpenAI
 from collections import defaultdict
+import time
 
 load_dotenv()
 
@@ -73,7 +74,8 @@ def categorize_transaction(merchant_name: str, bank_category: str, threshold: fl
             final_category = best_category
         else:
             source = "llm"
-            final_category = llm_handler(merchant_name, top_matches, bank_category, top_score)
+            time.sleep(10)
+            #final_category = llm_handler(merchant_name, top_matches, bank_category, top_score)
         
         return {
             "category": final_category or "Uncategorized",
@@ -177,7 +179,7 @@ def llm_handler(merchant_name: str, top_matches: list, bank_category: str, top_s
 
         # should implement a model config or something here
         response = client.chat.completions.create(
-            model="nvidia/nemotron-3-super-120b-a12b:free",
+            model=os.getenv("LLM_MODEL"),
             max_tokens=800,
             messages=[{"role": "user", "content": prompt}]
         )

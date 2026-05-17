@@ -92,6 +92,7 @@ oauth.register(
 
 
 # Background scheduler for async tasks
+# Initialize with get_event_loop to ensure proper event loop binding
 scheduler = AsyncIOScheduler()
 
 #################
@@ -136,22 +137,24 @@ async def auth_callback(request: Request):
     return res
 
 @app.on_event("startup")
-def start_scheduler():
+async def start_scheduler():
     """Start background scheduler on app startup"""
     if not scheduler.running:
+        # Ensure scheduler uses the current event loop
+        scheduler.configure(event_loop=asyncio.get_event_loop())
         scheduler.start()
 
 
 @app.on_event("shutdown")
-def shutdown_scheduler():
+async def shutdown_scheduler():
     """Shutdown scheduler on app shutdown"""
     if scheduler.running:
-        scheduler.shutdown()
+        scheduler.shutdown(wait=False)
 
 
 
 @app.get("/")
-def read_root():
+async def read_root():
     """Welcome endpoint"""
     return {"message": "Welcome to DNA Money API", "version": "1.0.0"}
 
@@ -194,7 +197,7 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 
 @app.get("/upload/{job_id}")
-def get_upload_status(job_id: str):
+async def get_upload_status(job_id: str):
     """
     Get the status of a PDF upload job.
     Returns the current status and extracted/categorized transactions if completed.
@@ -222,7 +225,7 @@ def get_upload_status(job_id: str):
 
 # havent reviewed this yet
 @app.post("/transaction")
-def add_manual_transaction(transaction: ManualTransactionRequest):
+async def add_manual_transaction(transaction: ManualTransactionRequest):
     """
     Add a single transaction manually.
     Categorizes the transaction and returns the result.

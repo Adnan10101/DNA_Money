@@ -128,16 +128,16 @@ async def process_pdf_upload(job_id: str, file_path: str):
         JOBS[job_id].unknowns_count = unknown_cnt
         
         # Step 4.1: upload to DB
-        await upload_category_analysis_to_supabase(job_id, category_analysis)
+        #await upload_category_analysis_to_supabase(job_id, category_analysis)
         
         # Step 4.2: Upload to Notion
-        try:
-            print(f"[Job {job_id}] Uploading {total_transaction_count} transactions to Notion...")
-            notion_manager = NotionManager()
-            successful, failed = notion_manager.add_transactions_batch(categorized_transactions)
-            print(f"[Job {job_id}] Notion upload complete: {successful} successful out of {total_transaction_count}, {len(failed)} failed")
-        except Exception as e:
-            print(f"[Job {job_id}] Warning: Notion upload failed - {str(e)}. Continuing without Notion sync.")
+        # try:
+        #     print(f"[Job {job_id}] Uploading {total_transaction_count} transactions to Notion...")
+        #     notion_manager = NotionManager()
+        #     successful, failed = notion_manager.add_transactions_batch(categorized_transactions)
+        #     print(f"[Job {job_id}] Notion upload complete: {successful} successful out of {total_transaction_count}, {len(failed)} failed")
+        # except Exception as e:
+        #     print(f"[Job {job_id}] Warning: Notion upload failed - {str(e)}. Continuing without Notion sync.")
         
         update_job_status(job_id, JobStatus.COMPLETED)
         

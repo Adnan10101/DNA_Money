@@ -1,6 +1,7 @@
 app/.env
 app/test.py
 dna-money/
+env/
 model/embedding_model.pkl
 data/
 app/__pycache__/
